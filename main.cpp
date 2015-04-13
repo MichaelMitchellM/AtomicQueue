@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "atomic_queue_1.hpp"
-#include "atomic_queue_2.hpp"
 
 #define SIZE 1000000u
 

@@ -67,14 +67,16 @@ namespace MMM{
 				
 				a_placing_.fetch_sub(1u);
 
-				auto expected_placing = 0u;
-				while (!a_placing_.compare_exchange_weak(expected_placing, 0u)){
-					expected_placing = 0u;
-				}
+				
 
 				auto expected_resizing = false;
 				if (a_resizing_.compare_exchange_strong(expected_resizing, true)){
 					
+					auto expected_placing = 0u;
+					while (!a_placing_.compare_exchange_weak(expected_placing, 0u)){
+						expected_placing = 0u;
+					}
+
 					auto old_array = data_;
 					auto new_array = new T[2u * capacity]; // error causer?
 

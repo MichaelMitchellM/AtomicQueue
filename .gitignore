@@ -59,3 +59,5 @@ x64/Release/main.obj
 *.obj
 x64/Debug/main.obj
 *.obj
+*.obj
+x64/Release/main.obj
