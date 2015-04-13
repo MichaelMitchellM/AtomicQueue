@@ -2,6 +2,7 @@
 # VS 2013 files
 *.vcxproj
 *.vcxproj.filters
+*.obj
 
 # Windows image file caches
 Thumbs.db
@@ -52,3 +53,9 @@ Debug/main.obj
 *.tlog
 Release/main.obj
 *.pdb
+x64/Debug/main.cod
+*.cod
+x64/Release/main.obj
+*.obj
+x64/Debug/main.obj
+*.obj

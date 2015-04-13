@@ -5,16 +5,19 @@
 #include <thread>
 #include <vector>
 
-#include "atomic_queue.hpp"
+#include "atomic_queue_1.hpp"
+#include "atomic_queue_2.hpp"
 
 #define SIZE 1000000u
+
+#define QUEUE MMM::AtomicQueue_1
 
 int main(){
 
 	for (auto tests = 0u; tests < 100u; ++tests){
 		std::vector<std::thread> threads;
 
-		auto aq = MMM::AtomicQueue<unsigned>();
+		auto aq = QUEUE<unsigned>();
 
 		std::atomic_uint32_t counter{ 0u };
 		auto count = 0u;
