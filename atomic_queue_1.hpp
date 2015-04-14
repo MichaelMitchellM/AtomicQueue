@@ -4,6 +4,8 @@
 #include <atomic>   // duh
 #include <cstring> // memcpy
 
+#define MMM_MAGIC_RATIO 50u
+
 namespace MMM{
 
 	template<typename T>
@@ -22,9 +24,7 @@ namespace MMM{
 		// sentinel variables
 		// uint32 is definately overkill
 		std::atomic_uint32_t a_placing_;
-		std::atomic_uint32_t a_getting_;
 		std::atomic_bool a_resizing_;
-		std::atomic_bool a_resetting_;
 
 	public:
 		AtomicQueue_1()
@@ -34,13 +34,11 @@ namespace MMM{
 			a_size_{ 0u },
 			a_head_{ 0u },
 			a_tail_{ 0u },
-			a_placing_{ 0u },
-			a_getting_{ 0u }
+			a_placing_{ 0u }
 
 		{
 			// atomic_bool cannot be constructed in the initializer list
 			a_resizing_.store(false);
-			a_resetting_.store(false);
 
 		}
 
@@ -51,12 +49,10 @@ namespace MMM{
 			a_size_{ 0u },
 			a_head_{ 0u },
 			a_tail_{ 0u },
-			a_placing_{ 0u },
-			a_getting_{ 0u }
+			a_placing_{ 0u }
 		{
 			// atomic_bool cannot be constructed in the initializer list
 			a_resizing_.store(false);
-			a_resetting_.store(false);
 
 		}
 
@@ -78,8 +74,11 @@ namespace MMM{
 				auto expected_resizing = false;
 				if (a_resizing_.compare_exchange_strong(expected_resizing, true)){
 					
-					// should make a decision on whether to resize or just reset the head, tail, and size
-
+					// unsure if these are safe before teh c_e_w
+					auto head = a_head_.load();
+					// might want to make this to a float
+					auto usage_ratio = 100u * head / capacity;
+					auto usable_elements = capacity - head;
 
 					// I would prefer this to be done after the memcpy
 					auto expected_placing = 0u;
@@ -87,18 +86,34 @@ namespace MMM{
 						expected_placing = 0u;
 					}
 
-					auto old_array = data_;
-					auto new_array = new T[2u * capacity];
-					data_ = new_array;
+					// pls find a good ratio that is based on measurements!
+					if (usage_ratio > MMM_MAGIC_RATIO){
+						// more empty space than used space if ratio is 50%
+						// no need to resize, just reset head and reduce size and tail
 
-					// we only need to copy from head onward!
-					// data before head will not be used again
-					std::memcpy(new_array, old_array, sizeof(T) * capacity);
-					delete[] old_array;
-					
-					size = capacity;
-					a_capacity_.store(2u * capacity);
-					a_size_.store(capacity + 1u);
+						// elements from data_ to data_ + head need to be destructed / deleted
+						// use std::is_pointer
+						std::memcpy(data_, data_ + head, sizeof(T) * usable_elements);
+
+						a_head_.store(0u);
+						a_size_.store(usable_elements);
+						a_tail_.store(usable_elements);
+					}
+					else{
+						auto old_array = data_;
+						auto new_array = new T[2u * capacity];
+						data_ = new_array;
+
+						// elements from data_ to data_ + head need to be destructed / deleted
+						// use std::is_pointer
+						std::memcpy(new_array, old_array + head, sizeof(T) * usable_elements);
+						delete[] old_array;
+
+						size = capacity;
+						a_capacity_.store(2u * capacity);
+						a_size_.store(capacity + 1u);
+					}
+
 					a_resizing_.store(false);
 				}
 				else{
@@ -113,12 +128,6 @@ namespace MMM{
 				}
 			}
 			
-			// wait if PopFront is resetting the queue
-			auto expected_resetting = false;
-			while (!a_resetting_.compare_exchange_weak(expected_resetting, false)){
-				expected_resetting = false;
-			}
-
 			// increment placement sentinel
 			a_placing_.fetch_add(1u);
 
@@ -148,43 +157,13 @@ namespace MMM{
 			}
 			else if ((head + 1) >= tail){
 
-				// might want to find a way to use c_e_w here instead
+				// do something meaningful!
+				return 0u;
 
-				auto expected_reset = false;
-				if (a_resetting_.compare_exchange_strong(expected_reset, true)){
-
-					// this does nothing!!!
-					auto expected_getting = 0u;
-					while (!a_placing_.compare_exchange_weak(expected_getting, 0u)){
-						expected_getting = 0u;
-					}
-					// end nothing do-er
-
-					a_head_.store(0u);
-					a_tail_.store(0u);
-					a_size_.store(0u);
-
-					a_resetting_.store(false);
-
-				}
-				else{
-
-					expected_reset = false;
-					while (!a_resetting_.compare_exchange_weak(expected_reset, false)){
-						expected_reset = false;
-					}
-
-				}
 			}
 
-			// this is useless
-			a_getting_.fetch_add(1u);
-
-			// data race!
+			// data racer, zoom zoom
 			auto data = data_[head];
-
-			// this is useless
-			a_getting_.fetch_sub(1u);
 
 			return data;
 		}
