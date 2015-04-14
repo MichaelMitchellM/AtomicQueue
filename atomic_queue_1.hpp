@@ -15,8 +15,10 @@ namespace MMM{
 		// should these be uint64?
 		std::atomic_uint32_t a_capacity_;
 		std::atomic_uint32_t a_size_;
+
 		std::atomic_uint32_t a_head_;
-		
+		std::atomic_uint32_t a_tail_;
+
 		// sentinel variables
 		// uint32 is definately overkill
 		std::atomic_uint32_t a_placing_;
@@ -31,6 +33,7 @@ namespace MMM{
 			a_capacity_{ 16u },
 			a_size_{ 0u },
 			a_head_{ 0u },
+			a_tail_{ 0u },
 			a_placing_{ 0u },
 			a_getting_{ 0u }
 
@@ -47,6 +50,7 @@ namespace MMM{
 			a_capacity_{ initial_capacity },
 			a_size_{ 0u },
 			a_head_{ 0u },
+			a_tail_{ 0u },
 			a_placing_{ 0u },
 			a_getting_{ 0u }
 		{
@@ -69,11 +73,15 @@ namespace MMM{
 
 			if (size >= capacity){
 				
+				// might want to find a way to use c_e_w here instead
+
 				auto expected_resizing = false;
 				if (a_resizing_.compare_exchange_strong(expected_resizing, true)){
 					
+					// should make a decision on whether to resize or just reset the head, tail, and size
+
+
 					// I would prefer this to be done after the memcpy
-					// if possible ofc
 					auto expected_placing = 0u;
 					while (!a_placing_.compare_exchange_weak(expected_placing, 0u)){
 						expected_placing = 0u;
@@ -83,6 +91,8 @@ namespace MMM{
 					auto new_array = new T[2u * capacity];
 					data_ = new_array;
 
+					// we only need to copy from head onward!
+					// data before head will not be used again
 					std::memcpy(new_array, old_array, sizeof(T) * capacity);
 					delete[] old_array;
 					
@@ -103,12 +113,20 @@ namespace MMM{
 				}
 			}
 			
+			// wait if PopFront is resetting the queue
+			auto expected_resetting = false;
+			while (!a_resetting_.compare_exchange_weak(expected_resetting, false)){
+				expected_resetting = false;
+			}
+
 			// increment placement sentinel
 			a_placing_.fetch_add(1u);
 
-			// this needs to be watched,
-			// it is a suspect for data races
+			// suspect for data races
 			data_[size] = data;
+
+			// increment tail index
+			a_tail_.fetch_add(1u);
 
 			// decrement placement sentinel
 			a_placing_.fetch_sub(1u);
@@ -120,20 +138,30 @@ namespace MMM{
 		T PopFront(){
 
 			auto head = a_head_.fetch_add(1u);
-			auto size = a_size_.load();
+			auto tail = a_tail_.load();
 
-			// need to watch out for the case when trying to pop something while resizing
+			if (tail == 0u){
 
-			if ((head + 1) >= size){
+				// this needs to be better!
+				return 0u;
+
+			}
+			else if ((head + 1) >= tail){
+
+				// might want to find a way to use c_e_w here instead
+
 				auto expected_reset = false;
 				if (a_resetting_.compare_exchange_strong(expected_reset, true)){
 
+					// this does nothing!!!
 					auto expected_getting = 0u;
 					while (!a_placing_.compare_exchange_weak(expected_getting, 0u)){
 						expected_getting = 0u;
 					}
+					// end nothing do-er
 
 					a_head_.store(0u);
+					a_tail_.store(0u);
 					a_size_.store(0u);
 
 					a_resetting_.store(false);
@@ -141,25 +169,21 @@ namespace MMM{
 				}
 				else{
 
-					auto expected_reset = false;
+					expected_reset = false;
 					while (!a_resetting_.compare_exchange_weak(expected_reset, false)){
 						expected_reset = false;
 					}
 
 				}
-
-			}
-			else if (size == 0u){
-
-				return 0u;
-
 			}
 
+			// this is useless
 			a_getting_.fetch_add(1u);
 
 			// data race!
 			auto data = data_[head];
 
+			// this is useless
 			a_getting_.fetch_sub(1u);
 
 			return data;
