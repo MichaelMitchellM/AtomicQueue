@@ -23,7 +23,9 @@ namespace MMM{
 
 		// sentinel variables
 		// uint32 is definately overkill
-		std::atomic_uint32_t a_placing_;
+		std::atomic_uint32_t a_pushing_;
+		std::atomic_uint32_t a_popping_;
+
 		std::atomic_bool a_resizing_;
 
 	public:
@@ -34,10 +36,10 @@ namespace MMM{
 			a_size_{ 0u },
 			a_head_{ 0u },
 			a_tail_{ 0u },
-			a_placing_{ 0u }
-
+			a_pushing_{ 0u },
+			a_popping_{ 0u }
 		{
-			// atomic_bool cannot be constructed in the initializer list
+
 			a_resizing_.store(false);
 
 		}
@@ -49,9 +51,10 @@ namespace MMM{
 			a_size_{ 0u },
 			a_head_{ 0u },
 			a_tail_{ 0u },
-			a_placing_{ 0u }
+			a_pushing_{ 0u },
+			a_popping_{ 0u }
 		{
-			// atomic_bool cannot be constructed in the initializer list
+
 			a_resizing_.store(false);
 
 		}
@@ -66,25 +69,30 @@ namespace MMM{
 		void PushBack(T& data){
 			auto size = a_size_.fetch_add(1u);
 			auto capacity = a_capacity_.load();
+			
+			// increment 
+			a_pushing_.fetch_add(1u);
 
 			if (size >= capacity){
 				
+				printf("yey %u\n", a_pushing_.load());
+				a_pushing_.fetch_sub(1u);
+
+				// spin
+				auto expected_pushing = 0u;
+				while (!a_pushing_.compare_exchange_weak(expected_pushing, 0u)){
+					expected_pushing = 0u;
+				}
 				// might want to find a way to use c_e_w here instead
 
 				auto expected_resizing = false;
 				if (a_resizing_.compare_exchange_strong(expected_resizing, true)){
-					
+
 					// unsure if these are safe before teh c_e_w
 					auto head = a_head_.load();
 					// might want to make this to a float
 					auto usage_ratio = 100u * head / capacity;
 					auto usable_elements = capacity - head;
-
-					// I would prefer this to be done after the memcpy
-					auto expected_placing = 0u;
-					while (!a_placing_.compare_exchange_weak(expected_placing, 0u)){
-						expected_placing = 0u;
-					}
 
 					// pls find a good ratio that is based on measurements!
 					if (usage_ratio > MMM_MAGIC_RATIO){
@@ -117,6 +125,7 @@ namespace MMM{
 					a_resizing_.store(false);
 				}
 				else{
+
 					// spin lock
 					auto expected_resizing = false;
 					while (!a_resizing_.compare_exchange_weak(expected_resizing, false)){
@@ -128,17 +137,18 @@ namespace MMM{
 				}
 			}
 			
-			// increment placement sentinel
-			a_placing_.fetch_add(1u);
-
 			// suspect for data races
 			data_[size] = data;
+
+			// these last two operations might want to be swapped
+			// I don't think it will make a difference tho,
+			// perhaps a SLIGHT perfromance benefit
 
 			// increment tail index
 			a_tail_.fetch_add(1u);
 
 			// decrement placement sentinel
-			a_placing_.fetch_sub(1u);
+			a_pushing_.fetch_sub(1u);
 
 		}
 
@@ -146,26 +156,46 @@ namespace MMM{
 
 		T PopFront(){
 
+			a_accessing_.fetch_add(1u);
+			auto up = true;
+
+			// spin lock
+			auto expected_resizing = false;
+			while (!a_resizing_.compare_exchange_weak(expected_resizing, false)){
+				expected_resizing = false;
+				if (up){
+					a_accessing_.fetch_sub(1u);
+					up = false;
+				}
+			}
+
+			if (!up) a_accessing_.fetch_add(1u);
+
 			auto head = a_head_.fetch_add(1u);
 			auto tail = a_tail_.load();
+
+			auto data = 0u;
 
 			if (tail == 0u){
 
 				// this needs to be better!
-				return 0u;
+				data = 0u;
 
 			}
 			else if ((head + 1) >= tail){
 
 				// do something meaningful!
-				return 0u;
-
+				data = 0u;
+				
 			}
 
 			// data racer, zoom zoom
-			auto data = data_[head];
+			data = data_[head];
+
+			a_accessing_.fetch_sub(1u);
 
 			return data;
+			
 		}
 		
 		unsigned size(){ return a_size_.load(); }

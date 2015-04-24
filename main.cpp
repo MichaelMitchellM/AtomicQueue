@@ -8,7 +8,7 @@
 
 #include "atomic_queue_1.hpp"
 
-#define NUM_THREADS 8u
+#define NUM_THREADS 4u
 #define SIZE 1000000u
 
 #define QUEUE MMM::AtomicQueue_1
@@ -34,7 +34,7 @@ int main(){
 					aq.PushBack(count);
 				}
 				else{
-					aq.PopFront();
+					//aq.PopFront();
 					//printf("%u\n", aq.PopFront());
 				}
 			}
