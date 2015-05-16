@@ -6,12 +6,12 @@
 #include <thread>
 #include <vector>
 
-#include "atomic_queue_1.hpp"
+#include "concurrent_queue_1.hpp"
 
 #define NUM_THREADS 4u
 #define SIZE 1000000u
 
-#define QUEUE MMM::AtomicQueue_1
+#define QUEUE MMM::ConcurrentQueue_1
 
 int main(){
 
