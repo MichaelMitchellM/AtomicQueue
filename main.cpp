@@ -8,7 +8,7 @@
 
 #include "concurrent_queue_1.hpp"
 
-#define NUM_THREADS 4u
+#define NUM_THREADS 8u
 #define SIZE 1000000u
 
 #define QUEUE MMM::ConcurrentQueue_1
@@ -25,16 +25,18 @@ int main(){
 
 		srand(std::chrono::system_clock::now().time_since_epoch().count());
 
+		aq.PopFront();
+
 		auto func =
 			[&]()
 		{
 			for (auto i = 0u; i < SIZE; ++i){
-				if (rand() % 2u){
+				if (rand() % 29u){
 					count = counter.fetch_add(1u);
 					aq.PushBack(count);
 				}
 				else{
-					//aq.PopFront();
+					aq.PopFront();
 					//printf("%u\n", aq.PopFront());
 				}
 			}

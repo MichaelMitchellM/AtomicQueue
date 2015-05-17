@@ -112,7 +112,7 @@ namespace MMM{
 			// check if the array needs to be resized or updated
 			if (size >= capacity){
 				
-				// a test to see how many threads enter this block
+				// * a test to see how many threads enter this block
 				//printf("yey %u\n", a_pushing_.load());
 
 				// decrease the number of
@@ -134,6 +134,13 @@ namespace MMM{
 				// and have them wait for the chosen thread to finish resizing
 				auto expected_resizing = false;
 				if (a_resizing_.compare_exchange_strong(expected_resizing, true)){
+					
+					// spin lock
+					// waits for all threads to finish popping
+					auto expected_popping = 0u;
+					while (!a_popping_.compare_exchange_strong(expected_popping, 0u)){
+						expected_popping = 0u;
+					}
 
 					auto head = a_head_.load();
 
@@ -146,7 +153,7 @@ namespace MMM{
 					auto usable_elements = capacity - head;
 
 					// ! Need to find a good ratio,
-					// preferably one that is found after measuring
+					// ! preferably one that is found after measuring
 					
 					// If statement to determing if there is more empty space
 					// (part of the array from 0 to head that contains already popped elements)
@@ -215,6 +222,9 @@ namespace MMM{
 						a_size_.store(capacity + 1u);
 					}
 
+					// ? !
+					a_pushing_.fetch_add(1u);
+
 					// signal that resizing of the array is over
 					a_resizing_.store(false);
 				}
@@ -228,7 +238,10 @@ namespace MMM{
 						expected_resizing = false;
 					}
 
-					// reget the size
+					// ? !
+					a_pushing_.fetch_add(1u);
+
+					// re-get the size
 					// * this will be the location
 					// * that the thread places its data
 					size = a_size_.fetch_add(1u);
@@ -254,20 +267,20 @@ namespace MMM{
 
 		T PopFront(){
 
-			a_accessing_.fetch_add(1u);
-			auto up = true;
+			a_popping_.fetch_add(1u);
+
+			auto swoop = true;
 
 			// spin lock
 			auto expected_resizing = false;
 			while (!a_resizing_.compare_exchange_weak(expected_resizing, false)){
-				expected_resizing = false;
-				if (up){
-					a_accessing_.fetch_sub(1u);
-					up = false;
+				if (swoop){
+					a_popping_.fetch_sub(1u);
+					swoop = false;
 				}
+				expected_resizing = false;
 			}
-
-			if (!up) a_accessing_.fetch_add(1u);
+			if (!swoop) a_popping_.fetch_add(1u);
 
 			auto head = a_head_.fetch_add(1u);
 			auto tail = a_tail_.load();
@@ -276,21 +289,23 @@ namespace MMM{
 
 			if (tail == 0u){
 
-				// this needs to be better!
+				// ! need to make gooder
 				data = 0u;
 
 			}
 			else if ((head + 1) >= tail){
 
-				// do something meaningful!
 				data = 0u;
 				
 			}
+			else{
 
-			// data racer, zoom zoom
-			data = data_[head];
+				// ! data racer, zoom zoom
+				data = data_[head];
 
-			a_accessing_.fetch_sub(1u);
+			}
+
+			a_popping_.fetch_sub(1u);
 
 			return data;
 			
