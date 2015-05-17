@@ -19,7 +19,7 @@ int main(){
 	for (auto tests = 0u; tests < 100u; ++tests){
 		std::vector<std::thread> threads;
 
-		auto aq = QUEUE<unsigned>();
+		QUEUE<unsigned> aq;
 
 		std::atomic<unsigned> counter{ 0u };
 		auto count = 0u;
