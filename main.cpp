@@ -21,7 +21,7 @@ int main(){
 
 		auto aq = QUEUE<unsigned>();
 
-		std::atomic_uint32_t counter{ 0u };
+		std::atomic<unsigned> counter{ 0u };
 		auto count = 0u;
 
 		srand(std::chrono::system_clock::now().time_since_epoch().count());

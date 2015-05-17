@@ -12,6 +12,10 @@ namespace MMM{
 	class ConcurrentQueue_1{
 	private:
 
+		// clang-3.6 on ubuntu was not taking
+		// std::atomic_uint32_t
+		using atomic_uint32 = std::atomic<unsigned>;
+
 		// array of data
 		// data is pushed onto the back
 		// data is popped from the from
@@ -19,18 +23,18 @@ namespace MMM{
 
 		// maximum number of elements the
 		// queue can currently have
-		std::atomic_uint32_t a_capacity_;
+		atomic_uint32 a_capacity_;
 
 		// current number of elements
 		// the queue has
-		std::atomic_uint32_t a_size_;
+		atomic_uint32 a_size_;
 
 		// current index of the head data
 		// starts from 0
-		std::atomic_uint32_t a_head_;
+		atomic_uint32 a_head_;
 
 		// 
-		std::atomic_uint32_t a_tail_;
+		atomic_uint32 a_tail_;
 
 		// --- sentinel variables ---
 		// variables used to sycronize
@@ -39,11 +43,11 @@ namespace MMM{
 
 		// number of threads currently trying
 		// to push data onto the queue
-		std::atomic_uint32_t a_pushing_;
+		atomic_uint32 a_pushing_;
 
 		// number of threads currently trying
 		// to pop data from the queue
-		std::atomic_uint32_t a_popping_;
+		atomic_uint32 a_popping_;
 
 		// true when the queue is resizing
 		// the data array
