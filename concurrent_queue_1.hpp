@@ -8,7 +8,7 @@
 
 namespace MMM{
 
-	template<typename T>
+	template<typename _T>
 	class ConcurrentQueue_1{
 	private:
 
@@ -19,7 +19,7 @@ namespace MMM{
 		// array of data
 		// data is pushed onto the back
 		// data is popped from the from
-		T* data_;
+		_T* data_;
 
 		// maximum number of elements the
 		// queue can currently have
@@ -58,7 +58,7 @@ namespace MMM{
 		// Default constructor, sets array size to 16
 		ConcurrentQueue_1()
 			:
-			data_{ new T[16u] },
+			data_{ new _T[16u] },
 			a_capacity_{ 16u },
 			a_size_{ 0u },
 			a_head_{ 0u },
@@ -74,7 +74,7 @@ namespace MMM{
 		// Constructor for user specified starting capacity
 		ConcurrentQueue_1(unsigned initial_capacity)
 			:
-			data_{ new T[initial_capacity] },
+			data_{ new _T[initial_capacity] },
 			a_capacity_{ initial_capacity },
 			a_size_{ 0u },
 			a_head_{ 0u },
@@ -90,16 +90,17 @@ namespace MMM{
 		// destructor
 		~ConcurrentQueue_1(){
 
-			// TODO
+			// _TODO
 			// wait for threads to finish popping data
 			// prevent other threads from pushing or popping
 
 			delete[] data_;
 		}
 
+
 		// Pushes Data on to the next available spot in the array
 		// If there are no more spots, resize the array
-		void PushBack(T& data){
+		void PushBack(_T& data){
 
 			// atomic increment the size of the array
 			// store the size before the incremenet
@@ -173,7 +174,7 @@ namespace MMM{
 						// ? use std::is_pointer
 
 						// shift the usable elements down to the start of the array
-						std::memcpy(data_, data_ + head, sizeof(T) * usable_elements);
+						std::memcpy(data_, data_ + head, sizeof(_T) * usable_elements);
 
 						// reset the head index back to 0
 						a_head_.store(0u);
@@ -197,7 +198,7 @@ namespace MMM{
 						// ! if the current capacity is not a multiple of 2,
 						// ! we should find the next multiple of 2 greater than
 						// ! the current capacity, and then use the double of that
-						auto new_array = new T[2u * capacity];
+						auto new_array = new _T[2u * capacity];
 
 						// set the queue's data array to the new array
 						data_ = new_array;
@@ -207,7 +208,7 @@ namespace MMM{
 
 						// copy the usable elements from the old array to
 						// the beginning of the new array
-						std::memcpy(new_array, old_array + head, sizeof(T) * usable_elements);
+						std::memcpy(new_array, old_array + head, sizeof(_T) * usable_elements);
 						
 						// delete the old array
 						delete[] old_array;
@@ -257,7 +258,7 @@ namespace MMM{
 
 			// ? these last two operations might want to be swapped
 			// ? I don't think it will make a difference tho,
-			// ? perhaps a SLIGHT perfromance benefit
+			// ? perhaps a SLIGH_T perfromance benefit
 
 			// increment tail index
 			a_tail_.fetch_add(1u);
@@ -267,9 +268,9 @@ namespace MMM{
 
 		}
 
-		// void PushBack(T&& data)
+		// void PushBack(_T&& data)
 
-		T PopFront(){
+		_T PopFront(){
 
 			a_popping_.fetch_add(1u);
 
