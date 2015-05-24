@@ -33,7 +33,8 @@ namespace MMM{
 		// starts from 0
 		atomic_uint32 a_head_;
 
-		// 
+		// current index of the tail
+		// place to put new elements
 		atomic_uint32 a_tail_;
 
 		// --- sentinel variables ---
@@ -132,6 +133,8 @@ namespace MMM{
 				while (!a_pushing_.compare_exchange_weak(expected_pushing, 0u)){
 					expected_pushing = 0u;
 				}
+
+				// !!! what if a new PushBack is started here?
 
 				// if statement that singles out a single thread
 				// and use it to resize the array
@@ -239,7 +242,7 @@ namespace MMM{
 						expected_resizing = false;
 					}
 
-					// !!! What if resizing happens between these statements
+					// !!! What if capacity is met between these statements
 
 					// ? !
 					a_pushing_.fetch_add(1u);
@@ -248,9 +251,13 @@ namespace MMM{
 					// * this will be the location
 					// * that the thread places its data
 					tail = a_size_.fetch_add(1u);
+
 				}
 			}
 			
+			capacity = a_capacity_.load();
+			if (tail >= capacity) printf("true\n");
+
 			// ! suspect for data races
 			data_[tail] = data;
 
@@ -263,12 +270,7 @@ namespace MMM{
 
 		}
 
-		// TODO split PushBack into small function
-		void Resize(){
-
-
-
-		}
+		// void Resize()
 
 		// void PushBack(_T&& data)
 
@@ -291,6 +293,8 @@ namespace MMM{
 
 			auto head = a_head_.fetch_add(1u);
 			auto tail = a_tail_.load();
+
+			// ! TODO: make sure size is greater than 0
 
 			_T data = 0u;
 
