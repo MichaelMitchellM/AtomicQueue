@@ -102,20 +102,20 @@ namespace MMM{
 		// If there are no more spots, resize the array
 		void PushBack(_T& data){
 
-			// atomic increment the size of the array
-			// store the size before the incremenet
-			auto size = a_size_.fetch_add(1u);
-
-			// atomic load the maximum capacity of the array
-			auto capacity = a_capacity_.load();
-			
 			// increment the counter for
 			// the number of threads currently
 			// adding elements onto the array
 			a_pushing_.fetch_add(1u);
 
+			// atomic increment the tail of the array
+			// store the tail before the incremenet
+			auto tail = a_tail_.fetch_add(1u);
+
+			// atomic load the maximum capacity of the array
+			auto capacity = a_capacity_.load();
+
 			// check if the array needs to be resized or updated
-			if (size >= capacity){
+			if (tail >= capacity){
 				
 				// * a test to see how many threads enter this block
 				//printf("yey %u\n", a_pushing_.load());
@@ -158,7 +158,7 @@ namespace MMM{
 					auto usable_elements = capacity - head;
 
 					// ! Need to find a good ratio,
-					// ! preferably one that is found after measuring
+					// ! preferably one that is made from measurements
 					
 					// If statement to determing if there is more empty space
 					// (part of the array from 0 to head that contains already popped elements)
@@ -178,10 +178,6 @@ namespace MMM{
 
 						// reset the head index back to 0
 						a_head_.store(0u);
-
-						// set the size to the number of
-						// usable elements from the old array
-						a_size_.store(usable_elements);
 
 						// set the tail index to the
 						// number of usable elements
@@ -213,18 +209,18 @@ namespace MMM{
 						// delete the old array
 						delete[] old_array;
 
-						// set the size equal to
+						// set the tail equal to
 						// the capcity of the old array
 						// * this is used to add the element
 						// * that the thread originially intended too
-						size = capacity;
+						tail = capacity;
 
 						// set the capcity to
 						// double the old array's cap
 						a_capacity_.store(2u * capacity);
 
-						// set the size to the new capcity + 1
-						a_size_.store(capacity + 1u);
+						// set the tail to the new capcity + 1
+						a_tail_.store(capacity + 1u);
 					}
 
 					// ? !
@@ -243,28 +239,34 @@ namespace MMM{
 						expected_resizing = false;
 					}
 
+					// !!! What if resizing happens between these statements
+
 					// ? !
 					a_pushing_.fetch_add(1u);
 
 					// re-get the size
 					// * this will be the location
 					// * that the thread places its data
-					size = a_size_.fetch_add(1u);
+					tail = a_size_.fetch_add(1u);
 				}
 			}
 			
 			// ! suspect for data races
-			data_[size] = data;
+			data_[tail] = data;
 
-			// ? these last two operations might want to be swapped
-			// ? I don't think it will make a difference tho,
-			// ? perhaps a SLIGH_T perfromance benefit
-
-			// increment tail index
-			a_tail_.fetch_add(1u);
+			// increment the size
+			// (number of not-popped elements)
+			a_size_.fetch_add(1u);
 
 			// decrement placement sentinel
 			a_pushing_.fetch_sub(1u);
+
+		}
+
+		// TODO split PushBack into small function
+		void Resize(){
+
+
 
 		}
 
@@ -290,30 +292,14 @@ namespace MMM{
 			auto head = a_head_.fetch_add(1u);
 			auto tail = a_tail_.load();
 
-			auto data = 0u;
+			_T data = 0u;
 
-			if (tail == 0u){
-
-				// ! need to make gooder
-				data = 0u;
-
-			}
-			else if ((head + 1) >= tail){
-
-				data = 0u;
-				
-			}
-			else{
-
-				// ! data racer, zoom zoom
-				data = data_[head];
-
-			}
+			// ! data racer, zoom zoom
+			data = data_[head];
 
 			a_popping_.fetch_sub(1u);
 
 			return data;
-			
 		}
 		
 		unsigned size(){ return a_size_.load(); }

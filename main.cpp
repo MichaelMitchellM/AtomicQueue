@@ -12,14 +12,14 @@
 #define NUM_THREADS 16u
 #define SIZE 1000000u
 
-#define QUEUE MMM::ConcurrentQueue_1
+template<typename _T> using conqueue = MMM::ConcurrentQueue_1<_T>;
 
 int main(){
 
 	for (auto tests = 0u; tests < 100u; ++tests){
 		std::vector<std::thread> threads;
 
-		QUEUE<unsigned> aq;
+		conqueue<unsigned> aq;
 
 		std::atomic<unsigned> counter{ 0u };
 		auto count = 0u;
