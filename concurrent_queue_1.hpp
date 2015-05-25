@@ -109,7 +109,7 @@ namespace MMM{
 			a_pushing_.fetch_add(1u);
 
 			// atomic increment the tail of the array
-			// store the tail before the incremenet
+			// store the index of the tail before the incremenet
 			auto tail = a_tail_.fetch_add(1u);
 
 			// atomic load the maximum capacity of the array
@@ -117,32 +117,32 @@ namespace MMM{
 
 			// check if the array needs to be resized or updated
 			if (tail >= capacity){
-				
-				// * a test to see how many threads enter this block
-				//printf("yey %u\n", a_pushing_.load());
 
 				// decrease the number of
 				// threads currently trying
 				// to add an element to the array
 				a_pushing_.fetch_sub(1u);
 
-				// spin lock
-				// waits for all threads to finish or
-				// stop adding their element to the array
-				auto expected_pushing = 0u;
-				while (!a_pushing_.compare_exchange_weak(expected_pushing, 0u)){
-					expected_pushing = 0u;
-				}
+				// !!! what if a thread comes through here and the resizing finishes?
 
-				// !!! what if a new PushBack is started here?
-
-				// if statement that singles out a single thread
-				// and use it to resize the array
+				// if statement that singles out a thread
+				// and uses it to resize the queue
 				// redirects all other threads to a spin lock
-				// and have them wait for the chosen thread to finish resizing
+				// and has them wait for the chosen thread to finish resizing
 				auto expected_resizing = false;
 				if (a_resizing_.compare_exchange_strong(expected_resizing, true)){
 					
+					// spin lock
+					// waits for all threads to finish pushing
+					auto expected_pushing = 0u;
+					while (!a_pushing_.compare_exchange_weak(expected_pushing, 0u)){
+						expected_pushing = 0u;
+					}
+
+					// increment the number of threads pushing
+					// * the resizing thread will add its data after resizing
+					a_pushing_.fetch_add(1u);
+
 					// spin lock
 					// waits for all threads to finish popping
 					auto expected_popping = 0u;
@@ -150,14 +150,14 @@ namespace MMM{
 						expected_popping = 0u;
 					}
 
+					// load the index of the head
+					// * place where things get popped from
 					auto head = a_head_.load();
 
-					// ? might want to make this to a float
 					// integer percentage of how much of the array is used
 					auto usage_ratio = 100u * head / capacity;
 
-					// number of elements that have not
-					// already been popped off
+					// number of elements that have not already been popped off
 					auto usable_elements = capacity - head;
 
 					// ! Need to find a good ratio,
@@ -202,7 +202,7 @@ namespace MMM{
 						// set the queue's data array to the new array
 						data_ = new_array;
 
-						// ! elements from data_ to data_ + head need to be destructed / deleted
+						// ! elements from data_[0] to data_[head] need to be destructed / deleted
 						// ? use std::is_pointer
 
 						// copy the usable elements from the old array to
@@ -218,16 +218,13 @@ namespace MMM{
 						// * that the thread originially intended too
 						tail = capacity;
 
-						// set the capcity to
-						// double the old array's cap
+						// set the capcity to double the old array's cap
 						a_capacity_.store(2u * capacity);
 
 						// set the tail to the new capcity + 1
+						// * +1 because this thread will add its data
 						a_tail_.store(capacity + 1u);
 					}
-
-					// ? !
-					a_pushing_.fetch_add(1u);
 
 					// signal that resizing of the array is over
 					a_resizing_.store(false);
@@ -242,22 +239,14 @@ namespace MMM{
 						expected_resizing = false;
 					}
 
-					// !!! What if capacity is met between these statements
-
-					// ? !
-					a_pushing_.fetch_add(1u);
-
-					// re-get the size
-					// * this will be the location
-					// * that the thread places its data
-					tail = a_size_.fetch_add(1u);
-
+					// Once the resizing is done, retry adding the element
+					// ? there could be a case where it recurses until stack overflow
+					// ? maybe create a loop to retry adding instead
+					PushBack(data);
+					return;
 				}
 			}
 			
-			capacity = a_capacity_.load();
-			if (tail >= capacity) printf("true\n");
-
 			// ! suspect for data races
 			data_[tail] = data;
 
